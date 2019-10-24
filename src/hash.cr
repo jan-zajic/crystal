@@ -929,6 +929,32 @@ class Hash(K, V)
     updated_entry ? updated_entry.value : yield key
   end
 
+  # If the specified *key* is already associated with a value returns the current value.
+  # Otherwise sets the value of *key* to the given *value* and given block is invoked with *key* and its value is returned.
+  #
+  def put_if_absent(key : K, value : V)
+    if self.has_key?(key)
+      self[key]
+    else
+      upsert(key, value)
+      yield key
+    end
+  end
+
+  # If the specified *key* is not already associated with a value
+  # compute its value using the given block and enters it into this map.
+  # Returns the current (existing or computed) value associated with the specified key.
+  #
+  def compute_if_absent(key : K, &block)
+    if self.has_key?(key)
+      self[key]
+    else
+      value = yield
+      upsert(key, value)
+      value
+    end
+  end
+
   # Returns the value for the key given by *key*.
   # If not found, returns the default value given by `Hash.new`, otherwise raises `KeyError`.
   #
