@@ -3812,7 +3812,7 @@ class String
   # chars.next # => '☃'
   # ```
   def each_char
-    CharIterator.new(Char::Reader.new(self))
+    Char::Reader.new(self).each
   end
 
   # Yields each character and its index in the string to the block.
@@ -4365,31 +4365,6 @@ class String
 
     if capacity.to_u64 > (UInt32::MAX - HEADER_SIZE - 1)
       raise ArgumentError.new("Capacity too big")
-    end
-  end
-
-  private class CharIterator
-    include Iterator(Char)
-
-    @reader : Char::Reader
-    @end : Bool
-
-    def initialize(@reader, @end = false)
-      check_empty
-    end
-
-    def next
-      return stop if @end
-
-      value = @reader.current_char
-      @reader.next_char
-      @end = true unless @reader.has_next?
-
-      value
-    end
-
-    private def check_empty
-      @end = true if @reader.string.bytesize == 0
     end
   end
 

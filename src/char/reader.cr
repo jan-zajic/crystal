@@ -13,6 +13,7 @@ struct Char
   # case `current_char` will always be `'\0'`.
   struct Reader
     include Enumerable(Char)
+    include Iterable(Char)
 
     # Returns the reader's String.
     getter string : String
@@ -279,6 +280,35 @@ struct Char
 
     private def byte_at?(i)
       @string.byte_at?(i).try(&.to_u32)
+    end
+
+    def each : Iterator(Char)
+      return CharIterator.new(self)
+    end
+
+    private class CharIterator
+      include Iterator(Char)
+
+      @reader : Char::Reader
+      @end : Bool
+
+      def initialize(@reader, @end = false)
+        check_empty
+      end
+
+      def next
+        return stop if @end
+
+        value = @reader.current_char
+        @reader.next_char
+        @end = true unless @reader.has_next?
+
+        value
+      end
+
+      private def check_empty
+        @end = true if @reader.string.bytesize == 0
+      end
     end
   end
 end
