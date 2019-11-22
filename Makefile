@@ -109,6 +109,9 @@ docs: ## Generate standard library documentation
 .PHONY: crystal
 crystal: $(O)/crystal ## Build the compiler
 
+.PHONY: win
+win: $(O)/win
+
 .PHONY: deps llvm_ext libcrystal
 deps: $(DEPS) ## Build dependencies
 
@@ -130,6 +133,10 @@ $(O)/compiler_spec: $(DEPS) $(SOURCES) $(SPEC_SOURCES)
 $(O)/crystal: $(DEPS) $(SOURCES)
 	@mkdir -p $(O)
 	$(BUILD_PATH) $(EXPORTS) ./bin/crystal build $(FLAGS) -o $@ src/compiler/crystal.cr -D without_openssl -D without_zlib
+
+$(O)/win: $(DEPS) $(SOURCES)
+	@mkdir -p $(O)
+	$(BUILD_PATH) $(EXPORTS) ./bin/crystal build $(FLAGS) --error-trace --cross-compile --target x86_64-pc-windows-msvc -o $@ src/compiler/crystal.cr -D without_openssl -D without_zlib
 
 $(LLVM_EXT_OBJ): $(LLVM_EXT_DIR)/llvm_ext.cc
 	$(CXX) -c $(CXXFLAGS) -o $@ $< $(shell $(LLVM_CONFIG) --cxxflags)
