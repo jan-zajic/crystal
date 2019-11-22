@@ -44,11 +44,11 @@ require "crystal/system/file"
 # tempfile.delete
 # ```
 class File < IO::FileDescriptor
-  # The file/directory separator character. `'/'` on all platforms.
-  SEPARATOR = '/'
+  # The file/directory separator character. `'\\'` on Windows, `'/'` on all other platforms.
+  SEPARATOR = Path::SEPARATOR
 
-  # The file/directory separator string. `"/"` on all platforms.
-  SEPARATOR_STRING = "/"
+  # The file/directory separator string. `'\\'` on Windows, `'/'` on all other platforms.
+  SEPARATOR_STRING = SEPARATOR.to_s
 
   # :nodoc:
   DEFAULT_CREATE_PERMISSIONS = File::Permissions.new(0o644)

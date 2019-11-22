@@ -25,13 +25,20 @@ module Crystal
       directory_for(sources.first.filename)
     end
 
+    private def separators
+      {% if flag?(:win32) %}
+        /[\/\\:]/
+      {% else %}
+        '/'
+      {% end %}
+    end
+
     # Returns the directory where cache files related to the
     # given filenames will be stored. The directory will be
     # created if it doesn't exist.
     def directory_for(filename : String)
       dir = compute_dir
-
-      name = filename.gsub('/', '-')
+      name = filename.gsub(separators, '-')
       while name.starts_with?('-')
         name = name[1..-1]
       end

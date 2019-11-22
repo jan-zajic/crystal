@@ -94,6 +94,7 @@ describe Path do
     end
 
     it { Path.windows.to_s.should eq "" }
+    puts Path.windows({"c:\\vyvoj\\crystal\\windows\\.crystal\\", "c--vyvoj-crystal-windows-test-byte_slice.cr'"}).to_s
   end
 
   it ".[]" do

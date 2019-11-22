@@ -13,7 +13,7 @@ module Crystal
     @crystal_path : Array(String)
 
     def initialize(path = CrystalPath.default_path, codegen_target = Config.default_target)
-      @crystal_path = path.split(':').reject &.empty?
+      @crystal_path = path.split(::Path::PATH_SEPARATOR).reject &.empty?
       add_target_path(codegen_target)
     end
 
@@ -99,7 +99,6 @@ module Crystal
       end
 
       basename = File.basename(relative_filename)
-
       # If it's "foo", check if "foo/foo.cr" exists (for the std, nested)
       absolute_filename = make_relative_unless_absolute("#{relative_filename}/#{basename}.cr")
       return absolute_filename if File.exists?(absolute_filename)
@@ -144,7 +143,7 @@ module Crystal
     end
 
     private def make_relative_unless_absolute(filename)
-      filename = "#{Dir.current}/#{filename}" unless filename.starts_with?('/')
+      filename = "#{Dir.current}/#{filename}" unless ::Path.new(filename).absolute?
       File.expand_path(filename)
     end
 

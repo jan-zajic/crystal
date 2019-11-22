@@ -341,7 +341,7 @@ module Crystal
       else
         if thin_lto
           clang = ENV["CLANG"]? || "clang"
-          lto_cache_dir = "#{output_dir}/lto.cache"
+          lto_cache_dir = "#{output_dir}#{::Path::SEPARATOR}lto.cache"
           Dir.mkdir_p(lto_cache_dir)
           {% if flag?(:darwin) %}
             cc = ENV["CC"]? || "#{clang} -flto=thin -Wl,-mllvm,-threads=#{n_threads},-cache_path_lto,#{lto_cache_dir},#{@release ? "-mllvm,-O2" : "-mllvm,-O0"}"
@@ -744,7 +744,7 @@ module Crystal
       end
 
       def object_name
-        Crystal.relative_filename("#{@output_dir}/#{object_filename}")
+        Crystal.relative_filename("#{@output_dir}#{::Path::SEPARATOR}#{object_filename}")
       end
 
       def object_filename
@@ -752,19 +752,19 @@ module Crystal
       end
 
       def temporary_object_name
-        Crystal.relative_filename("#{@output_dir}/#{object_filename}.tmp")
+        Crystal.relative_filename("#{@output_dir}#{::Path::SEPARATOR}#{object_filename}.tmp")
       end
 
       def bc_name
-        "#{@output_dir}/#{@name}.bc"
+        "#{@output_dir}#{::Path::SEPARATOR}#{@name}.bc"
       end
 
       def bc_name_new
-        "#{@output_dir}/#{@name}.new.bc"
+        "#{@output_dir}#{::Path::SEPARATOR}#{@name}.new.bc"
       end
 
       def ll_name
-        "#{@output_dir}/#{@name}.ll"
+        "#{@output_dir}#{::Path::SEPARATOR}#{@name}.ll"
       end
     end
   end
