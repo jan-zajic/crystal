@@ -183,7 +183,6 @@ module Crystal
 
       if @program.has_flag? "windows"
         @personality_name = "__CxxFrameHandler3"
-
         personality_function = @llvm_mod.functions.add(@personality_name, [] of LLVM::Type, llvm_context.int32, true)
         @main.personality_function = personality_function
       else
@@ -1971,6 +1970,11 @@ module Crystal
 
       memset pointer, int8(0), size
       bit_cast pointer, type.pointer
+    end
+
+    def personality_function
+      personality_fun = @main_mod.functions[@personality_name]
+      check_main_fun @personality_name, personality_fun
     end
 
     def crystal_malloc_fun

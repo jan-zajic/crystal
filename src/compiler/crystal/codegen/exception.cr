@@ -62,7 +62,7 @@ class Crystal::CodeGenVisitor
 
     windows = @program.has_flag? "windows"
 
-    context.fun.personality_function = @llvm_mod.functions[@personality_name] if windows
+    context.fun.personality_function = personality_function if windows
 
     # This is the block which is entered when the body raises an exception
     rescue_block = new_block "rescue"
