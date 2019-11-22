@@ -23,6 +23,8 @@ module Crystal
   class Compiler
     CC = ENV["CC"]? || "cc"
     CL = "cl"
+    @@current : Compiler?
+    @parent : Compiler?
 
     # A source to the compiler: its filename and source code.
     record Source,
@@ -162,17 +164,23 @@ module Crystal
     # Raises `InvalidByteSequenceError` if the source code is not
     # valid UTF-8.
     def compile(source : Source | Array(Source), output_filename : String) : Result
-      source = [source] unless source.is_a?(Array)
-      program = new_program(source)
-      node = parse program, source
-      node = program.semantic node, cleanup: !no_cleanup?
-      result = codegen program, node, source, output_filename unless @no_codegen
+      @parent = @@current
+      @@current = self
+      begin
+        source = [source] unless source.is_a?(Array)
+        program = new_program(source)
+        node = parse program, source
+        node = program.semantic node, cleanup: !no_cleanup?
+        result = codegen program, node, source, output_filename unless @no_codegen
 
-      @progress_tracker.clear
-      print_macro_run_stats(program)
-      print_codegen_stats(result)
+        @progress_tracker.clear
+        print_macro_run_stats(program)
+        print_codegen_stats(result)
 
-      Result.new program, node
+        Result.new program, node
+      ensure
+        @@current = @parent
+      end
     end
 
     # Runs the semantic pass on the given source, without generating an
@@ -386,11 +394,9 @@ module Crystal
       end
 
       output_filename = File.expand_path(output_filename)
-
       @progress_tracker.stage("Codegen (linking)") do
         Dir.cd(output_dir) do
           linker_command = linker_command(program, nil, output_filename, output_dir)
-
           process_wrapper(linker_command, object_names) do |command, args|
             Process.run(command, args, shell: true,
               input: Process::Redirect::Close, output: Process::Redirect::Inherit, error: Process::Redirect::Pipe) do |process|
@@ -588,6 +594,18 @@ module Crystal
 
     private def colorize(obj)
       obj.colorize.toggle(@color)
+    end
+
+    def self.current
+      return @@current
+    end
+
+    def self.current_parent
+      @@current.as(Compiler).parent unless !@@current
+    end
+
+    def parent
+      @parent
     end
 
     # An LLVM::Module with information to compile it.

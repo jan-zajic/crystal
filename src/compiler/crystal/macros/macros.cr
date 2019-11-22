@@ -119,6 +119,12 @@ class Crystal::Program
     # No need to generate debug info for macro run programs
     compiler.debug = Crystal::Debug::None
 
+    parent = Compiler.current
+    if parent
+      compiler.codegen_target = parent.as(Compiler).codegen_target
+      compiler.cross_compile = parent.as(Compiler).cross_compile
+    end
+
     result = compiler.compile Compiler::Source.new(filename, source), executable_path
 
     # Write the new files from which 'filename' depends into the cache dir
