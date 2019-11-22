@@ -1,0 +1,18 @@
+EXT_DIR=src/llvm/ext
+LLVM_EXT_OBJ=$(EXT_DIR)/llvm_ext_win.o
+
+all: clean $(LLVM_EXT_OBJ) $(WIN_INLINES_OBJ) crystal tst
+	
+$(LLVM_EXT_OBJ): $(EXT_DIR)/llvm_ext.cc
+	$(CXX) -c $(CXXFLAGS) /Fo$(LLVM_EXT_OBJ) $(LLVM_CXX_FLAGS) $(EXT_DIR)/llvm_ext.cc
+
+crystal:
+#	@echo $(LLVM_LD_FLAGS)
+	$(CXX) ".build/win.o" /Fecrystal pcre.lib gc.lib libcmt.lib Ws2_32.lib User32.lib advapi32.lib legacy_stdio_definitions.lib DbgHelp.lib Psapi.lib UserEnv.lib $(LLVM_LD_FLAGS) $(LLVM_EXT_OBJ) $(WIN_INLINES_OBJ) /link /DEBUG 
+
+clean:
+	@if exist crystal.exe del crystal.exe
+
+tst:
+	@echo "Running crystal compiler"
+	crystal.exe ./samples/hello_world.cr
