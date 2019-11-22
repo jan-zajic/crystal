@@ -1,3 +1,5 @@
+{% skip_file if flag?(:win32) %}
+
 # Implementation of the `crystal tool playground` command
 #
 # This is just the command-line part. The playground is

@@ -70,8 +70,13 @@ class Crystal::Command
       exit 1 if warnings_fail_on_exit?(result)
       result
     when "play".starts_with?(command)
-      options.shift
-      playground
+      {% unless flag?(:win32) %}
+        options.shift
+        playground
+      {% else %}
+        STDERR.puts "Playground currently not supported on Windows"
+        exit 1
+      {% end %}
     when "deps".starts_with?(command)
       STDERR.puts "Please use 'shards': 'crystal deps' has been removed"
       exit 1
