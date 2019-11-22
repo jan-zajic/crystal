@@ -260,7 +260,7 @@ module Crystal
     private def bc_flags_changed?(output_dir)
       bc_flags_changed = true
       current_bc_flags = "#{@codegen_target}|#{@mcpu}|#{@mattr}|#{@release}|#{@link_flags}|#{@mcmodel}"
-      bc_flags_filename = "#{output_dir}/bc_flags"
+      bc_flags_filename = "#{output_dir}#{::Path::SEPARATOR}bc_flags"
       if File.file?(bc_flags_filename)
         previous_bc_flags = File.read(bc_flags_filename).strip
         bc_flags_changed = previous_bc_flags != current_bc_flags
