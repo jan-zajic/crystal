@@ -81,7 +81,7 @@ module Crystal
     property? no_codegen = false
 
     # Maximum number of LLVM modules that are compiled in parallel
-    property n_threads : Int32 = {% if flag?(:preview_mt) %} 1 {% else %} 8 {% end %}
+    property n_threads : Int32 = {% if flag?(:preview_mt) || flag?(:win32) %} 1 {% else %} 8 {% end %}
 
     # Default prelude file to use. This ends up adding a
     # `require "prelude"` (or whatever name is set here) to
@@ -437,6 +437,8 @@ module Crystal
 
       {% if flag?(:preview_mt) %}
         raise "Cannot fork compiler in multithread mode"
+      {% elsif flag?(:win32) %}
+        raise "Cannot fork compiler on windows"
       {% else %}
         jobs_count = 0
         wait_channel = Channel(Array(String)).new(@n_threads)
