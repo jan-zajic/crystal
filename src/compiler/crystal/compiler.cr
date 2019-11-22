@@ -22,7 +22,7 @@ module Crystal
   # optionally generates an executable.
   class Compiler
     CC = ENV["CC"]? || "cc"
-    CL = "cl"
+    LINK = "LINK"
     @@current : Compiler?
     @parent : Compiler?
 
@@ -330,14 +330,11 @@ module Crystal
         if object_name
           object_name = %("#{object_name}")
         else
-          object_name = %(%*)
+          object_name = %()
         end
 
-        if (link_flags = @link_flags) && !link_flags.empty?
-          link_flags = "/link #{link_flags}"
-        end
-
-        %(#{CL} #{object_name} "/Fe#{output_filename}" #{program.lib_flags} #{link_flags})
+        link_flags = @link_flags || ""
+        %(#{LINK} #{object_name} "/OUT:#{output_filename}" /NOLOGO #{link_flags} #{program.lib_flags})
       else
         if thin_lto
           clang = ENV["CLANG"]? || "clang"

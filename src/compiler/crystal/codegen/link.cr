@@ -101,6 +101,10 @@ module Crystal
             flags << ' ' << libname << ".lib"
           end
         end
+        # Append the CRYSTAL_LIBRARY_PATH values as /LIBPATH:
+        CrystalLibraryPath.paths.each do |path|
+          flags << " /LIBPATH:#{path}"
+        end
       end
     end
 
