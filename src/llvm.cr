@@ -21,6 +21,7 @@ module LLVM
     {% end %}
   end
 
+  {% unless flag?(:win32) %}
   def self.init_aarch64
     return if @@initialized_aarch64
     @@initialized_aarch64 = true
@@ -54,6 +55,7 @@ module LLVM
       raise "ERROR: LLVM was built without ARM target"
     {% end %}
   end
+  {% end %}
 
   def self.start_multithreaded : Bool
     if multithreaded?
