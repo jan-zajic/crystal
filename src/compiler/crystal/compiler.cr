@@ -340,7 +340,7 @@ module Crystal
         end
 
         link_flags = @link_flags || ""
-        %(#{LINK} #{object_name} "/OUT:#{output_filename}" /NOLOGO #{link_flags} #{program.lib_flags})
+        %(#{LINK} #{object_name} "/OUT:#{output_filename}.exe" /NOLOGO #{link_flags} #{program.lib_flags})
       else
         if thin_lto
           clang = ENV["CLANG"]? || "clang"
