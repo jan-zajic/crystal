@@ -653,7 +653,7 @@ module Crystal
         {% unless LibLLVM::IS_38 || LibLLVM::IS_39 %}
           # Here too, we first compile to a temporary file and then rename it
           llvm_mod.write_bitcode_with_summary_to_file(temporary_object_name)
-          File.rename(temporary_object_name, object_name)
+          File.move(temporary_object_name, object_name, File::MoveOption::ATOMIC_MOVE)
           @reused_previous_compilation = false
           dump_llvm_ir
         {% else %}
@@ -716,7 +716,7 @@ module Crystal
         if must_compile
           compiler.optimize llvm_mod if compiler.release?
           compiler.target_machine.emit_obj_to_file llvm_mod, temporary_object_name
-          File.rename(temporary_object_name, object_name)
+          File.move(temporary_object_name, object_name, File::MoveOption::ATOMIC_MOVE)
         else
           @reused_previous_compilation = true
         end

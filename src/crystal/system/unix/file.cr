@@ -133,6 +133,59 @@ module Crystal::System::File
     end
   end
 
+  def self.move(source_path, target_path, options : Tuple(::File::MoveOption)) : Nil
+    # map options
+    atomicMove = false
+    replaceExisting = false
+    options.each { |opt|
+      case opt
+      when ::File::MoveOption::ATOMIC_MOVE
+        atomicMove = true
+      when ::File::MoveOption::REPLACE_EXISTING
+        replaceExisting = true
+      end
+    }
+
+    if atomicMove
+      self.rename(source_path, target_path)
+    end
+
+    # get attributes of source file
+    # attempt to get attributes of target file
+    # if both files are the same there is nothing to do
+    # if target exists and !replace then throw exception
+    source_info = ::File.info(source_path)
+    # open target (don't follow links)
+    target_info = ::File.info?(taget_path, false)
+    if target_info
+      if source_info.same_file?(target_info)
+        return
+      end
+
+      if !replaceExisting
+        raise "Target path #{target_path} already exists!"
+      end
+
+      # attempt to delete target
+      self.delete(target_path)
+    end
+
+    begin
+      # first try rename
+      self.rename(source_path, target_path)
+    rescue err : Errno
+      if err.errno != Errno::EXDEV && err.errno != Errno::EISDIR
+        raise err
+      end
+    end
+
+    # copy source to target
+    FileUtils.cp(source_path, target_path)
+
+    # delete source
+    this.delete(source_path)
+  end
+
   def self.utime(atime : ::Time, mtime : ::Time, filename : String) : Nil
     timevals = uninitialized LibC::Timeval[2]
     timevals[0] = to_timeval(atime)

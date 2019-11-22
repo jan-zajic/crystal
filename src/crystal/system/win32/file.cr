@@ -151,9 +151,24 @@ module Crystal::System::File
     end
   end
 
+  def self.remove_directory(path : String) : Nil
+    if LibC.RemoveDirectoryW(to_windows_path(path)) != LibC::TRUE
+      raise WinError.new("Error deleting directory #{path.inspect}")
+    end
+  end
+
+  def self.delete_file(path : String) : Nil
+    if LibC.DeleteFileW(to_windows_path(path)) != LibC::TRUE
+      raise WinError.new("Error removing file #{path.inspect}")
+    end
+  end
+
   def self.delete(path : String) : Nil
-    if LibC._wunlink(to_windows_path(path)) != 0
-      raise Errno.new("Error deleting file #{path.inspect}")
+    target_info = ::File.info(path, false)
+    if target_info.directory?
+      self.remove_directory(path)
+    else
+      self.delete_file(path)
     end
   end
 
@@ -198,6 +213,87 @@ module Crystal::System::File
     end
   end
 
+  def self.move(source_path, target_path, options : Tuple(::File::MoveOption)) : Nil
+    # map options
+    atomicMove = false
+    replaceExisting = false
+    options.each { |opt|
+      case opt
+      when ::File::MoveOption::ATOMIC_MOVE
+        atomicMove = true
+      when ::File::MoveOption::REPLACE_EXISTING
+        replaceExisting = true
+      end
+    }
+
+    if atomicMove
+      # can throw ERROR_NOT_SAME_DEVICE
+      if LibC.MoveFileExW(to_windows_path(source_path), to_windows_path(target_path), LibC::MOVEFILE_REPLACE_EXISTING) != LibC::TRUE
+        raise WinError.new("Cannot atomic move file")
+      end
+      return
+    end
+
+    # get attributes of source file
+    # attempt to get attributes of target file
+    # if both files are the same there is nothing to do
+    # if target exists and !replace then throw exception
+    source_info = ::File.info(source_path)
+    # open target (don't follow links)
+    target_info = ::File.info?(target_path, false)
+    if target_info
+      if source_info.same_file?(target_info)
+        return
+      end
+
+      if !replaceExisting
+        raise "Target path #{target_path} already exists!"
+      end
+
+      # if target exists then delete it.
+      if target_info.directory?
+        self.remove_directory(target_path)
+      else
+        self.delete_file(target_path)
+      end
+    end
+
+    # first try MoveFileExW (no options). If target is on same volume then
+    # all attributes (including security attributes) are preserved.
+    if LibC.MoveFileExW(to_windows_path(source_path), to_windows_path(target_path), 0) != LibC::TRUE
+      last_error = LibC.GetLastError
+      if last_error != WinError::ERROR_NOT_SAME_DEVICE
+        raise WinError.new("Cannot move file from #{source_path} to #{target_path}", last_error)
+      end
+    end
+
+    # target is on different volume so use MoveFileExW with copy option
+    if !source_info.directory?
+      if LibC.MoveFileExW(to_windows_path(source_path), to_windows_path(target_path), LibC::MOVEFILE_COPY_ALLOWED) != LibC::TRUE
+        raise WinError.new("Cannot move file from #{source_path} to #{target_path}")
+      end
+      #  MoveFileExW does not copy security attributes when moving across volumes.
+      self.copy_security_attributes(source_path, target_path)
+    end
+
+    # moving directory to another file system
+    if LibC.CreateDirectoryW(to_windows_path(target_path), nil) != LibC::TRUE
+      raise WinError.new("Cannot create directory #{target_path}")
+    end
+
+    # copy dos attributes
+    attributes = LibC.GetFileAttributesW(to_windows_path(source_path))
+    if LibC.SetFileAttributesW(to_windows_path(target_path), attributes) == 0
+      raise WinError.new("SetFileAttributes")
+    end
+    self.copy_security_attributes(source_path, target_path)
+
+    # TODO: copy windows file times
+
+    # delete source
+    self.remove_directory(source_path)
+  end
+
   def self.utime(access_time : ::Time, modification_time : ::Time, path : String) : Nil
     times = LibC::Utimbuf64.new
     times.actime = access_time.to_unix
@@ -232,5 +328,16 @@ module Crystal::System::File
 
   private def system_fsync(flush_metadata = true) : Nil
     raise NotImplementedError.new("File#fsync")
+  end
+
+  #
+  # Copy DACL/owner/group from source to target
+  #
+  private def self.copy_security_attributes(source, target) : Nil
+    request = (LibC::DACL_SECURITY_INFORMATION | LibC::OWNER_SECURITY_INFORMATION | LibC::GROUP_SECURITY_INFORMATION)
+    size = LibC::SIZEOF_SECURITY_DESCRIPTOR
+    buffer = Pointer.malloc(size, Void)
+    LibC.GetFileSecurityW(to_windows_path(source), request, pointerof(buffer), size, pointerof(size))
+    LibC.SetFileSecurityW(to_windows_path(target), request, pointerof(buffer))
   end
 end
