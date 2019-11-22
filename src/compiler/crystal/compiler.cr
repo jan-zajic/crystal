@@ -3,6 +3,12 @@ require "file_utils"
 require "colorize"
 require "digest/md5"
 
+{% if flag?(:win32) %}
+  OBJECT_FILE_EXTENSION = ".obj"
+{% else %}
+  OBJECT_FILE_EXTENSION = ".o"
+{% end %}
+
 module Crystal
   @[Flags]
   enum Debug
@@ -312,7 +318,7 @@ module Crystal
     private def cross_compile(program, units, output_filename)
       unit = units.first
       llvm_mod = unit.llvm_mod
-      object_name = "#{output_filename}.o"
+      object_name = "#{output_filename}#{OBJECT_FILE_EXTENSION}"
 
       optimize llvm_mod if @release
 
@@ -511,11 +517,11 @@ module Crystal
       puts
       puts "Codegen (bc+obj):"
       if units.size == reused.size
-        puts " - all previous .o files were reused"
+        puts " - all previous #{OBJECT_FILE_EXTENSION} files were reused"
       elsif reused.size == 0
-        puts " - no previous .o files were reused"
+        puts " - no previous #{OBJECT_FILE_EXTENSION} files were reused"
       else
-        puts " - #{reused.size}/#{units.size} .o files were reused"
+        puts " - #{reused.size}/#{units.size} #{OBJECT_FILE_EXTENSION} files were reused"
         not_reused = units.reject { |u| reused.includes?(u.name) }
         puts
         puts "These modules were not reused:"
@@ -736,7 +742,7 @@ module Crystal
           llvm_mod.print_to_file "#{output_filename}.ll"
         end
         if emit_target.obj?
-          FileUtils.cp(object_name, "#{output_filename}.o")
+          FileUtils.cp(object_name, "#{output_filename}#{OBJECT_FILE_EXTENSION}")
         end
       end
 
@@ -745,7 +751,7 @@ module Crystal
       end
 
       def object_filename
-        "#{@name}.o"
+        "#{@name}#{OBJECT_FILE_EXTENSION}"
       end
 
       def temporary_object_name
