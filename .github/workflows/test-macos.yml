@@ -1,22 +1,23 @@
-name: Run Specs On macOS
+name: test_all_platforms
 on: [push, pull_request]
 
 jobs:
-  cross_compile_windows_obj:
-    name: Build Crystal on MacOS
-    runs-on: macos-latest
+  test_preview_mt:
+    name: test_preview_mt
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v1
       - name: Set env
         run: |
-          echo ::set-env name=PATH::"/usr/local/opt/llvm/bin:$PATH"
-          echo ::set-env name=TRAVIS_OS_NAME::"osx"
+          echo ::set-env name=TRAVIS_OS_NAME::"linux"
+          echo ::set-env name=ARCH::"x86_64"
+          echo ::set-env name=ARCH_CMD::"linux64"          
       - name: Prepare system
         run: |          
           bin/ci prepare_system
-          echo ::set-env name=PKG_CONFIG_PATH::"$PKG_CONFIG_PATH:/usr/local/opt/openssl/lib/pkgconfig"
       - name: Build
         run: |          
           bin/ci prepare_build
-          bin/ci build
+          bin/ci with_build_env 'make crystal'
+          bin/ci with_build_env 'CRYSTAL_WORKERS=4 make std_spec threads=1 verbose=1 FLAGS="-D preview_mt"'
