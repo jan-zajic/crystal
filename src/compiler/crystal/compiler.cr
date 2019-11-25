@@ -27,7 +27,7 @@ module Crystal
   # A Compiler parses source code, type checks it and
   # optionally generates an executable.
   class Compiler
-    CC = ENV["CC"]? || "cc"
+    CC   = ENV["CC"]? || "cc"
     LINK = "LINK"
     @@current : Compiler?
     @parent : Compiler?
