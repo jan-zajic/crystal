@@ -3,7 +3,7 @@ on: [push, pull_request]
 
 jobs:
   cross_compile_windows_obj:
-    name: Build Crystal Windows Object
+    name: Build Crystal on MacOS
     runs-on: macos-latest
     steps:
       - name: Checkout repository
@@ -11,12 +11,13 @@ jobs:
       - name: Set env
         run: |
           echo ::set-env name=CURRENT_TAG::$(echo ${GITHUB_REF:10})
-          export PATH="/usr/local/opt/llvm/bin:$PATH"
+          echo ::set-env name=PATH::"/usr/local/opt/llvm/bin:$PATH"
+          echo ::set-env name=TRAVIS_OS_NAME::"osx"
       - name: Prepare system
         run: |          
           bin/ci prepare_system
+          echo ::set-env name=PKG_CONFIG_PATH::"$PKG_CONFIG_PATH:/usr/local/opt/openssl/lib/pkgconfig"
       - name: Build
         run: |          
-          export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:/usr/local/opt/openssl/lib/pkgconfig"          
           bin/ci prepare_build
           bin/ci build
