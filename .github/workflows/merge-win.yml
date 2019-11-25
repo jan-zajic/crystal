@@ -1,0 +1,28 @@
+name: Merge Windows branches after modification
+
+# Trigger on push
+on:
+  push:
+    # Sequence of patterns matched against refs/heads
+    branches:    
+      - feature/win_compiler    # Push events on feature/win_compiler branch
+      - feature/win_process     # Push events on win_process branch
+
+jobs:
+  cross_compile_windows_obj:
+    name: Build Crystal Windows Object
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v1
+        with:
+          ref: feature/win_ci
+
+      - name: merge branches
+        run: |        
+          git config --global user.email "jan.zajic@corpus.cz"
+          git config --global user.name "Jan Zajic"
+          git reset --hard WIN_PREVIEW_BASE
+          git merge --no-edit origin/feature/win_process
+          git merge --no-edit origin/feature/win_compiler
+          git push origin feature/win_ci --force 

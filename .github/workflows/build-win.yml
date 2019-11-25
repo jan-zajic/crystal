@@ -1,0 +1,157 @@
+name: Crystal for Windows Preview CI
+
+# Trigger on push
+on:
+  push:
+    branches:
+      - feature/win_ci 
+      - feature/win_preview
+
+jobs:
+  cross_compile_windows_obj:
+    name: Build Crystal Windows Object
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v1
+      - name: cross compile
+        uses: jan-zajic/crystal-cross-compile-for-windows-action@master
+      - name: upload binary
+        uses: actions/upload-artifact@v1
+        with:
+          name: win.o
+          path: .build/win.o
+
+  link_windows_compiler:
+    name: Build crystal.exe
+    runs-on: windows-latest
+    needs: cross_compile_windows_obj
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v1
+      - name: Download cross compiled binary
+        uses: actions/download-artifact@v1
+        with:
+          name: win.o
+          path: .build
+      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: actions/cache@v1
+        id: cache-llvm
+        with:
+         path: llvm
+         key: ${{ runner.os }}-llvm
+
+      - name: Get LLVM
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$dir/llvm/target"
+          $url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-7.1.0/llvm-7.1.0.src.tar.xz"
+          $dir = $Env:GITHUB_WORKSPACE
+          $output = "$dir/llvm.src.tar.xz"
+          (New-Object System.Net.WebClient).DownloadFile($url, $output)
+          7z.exe e $output
+          7z.exe x "$dir/llvm.src.tar"
+          cd "$dir/llvm-7.1.0.src"
+          
+      - name: Compile LLVM
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
+        shell: cmd
+        run: |
+          cd "%GITHUB_WORKSPACE%\llvm-7.1.0.src"
+          mkdir build          
+          cd build
+          cmake.exe .. -G "Visual Studio 16 2019" -A x64 -Thost=x64 -DLLVM_TARGETS_TO_BUILD="X86" -DLLVM_BUILD_LLVM_DYLIB=ON -DLLVM_USE_CRT_RELEASE=MT -DLLVM_INCLUDE_TESTS=NO
+          cmake.exe --build . --config release
+          cmake.exe --config release -DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%/llvm/target/ -P cmake_install.cmake
+
+      - name: Extract Cache archive
+        if: steps.cache-llvm.outputs.cache-hit == 'true'
+        run: |
+          $dir = $Env:GITHUB_WORKSPACE
+          cd "$dir/llvm"
+          7z x llvm.7z -aoa
+
+      - uses: actions/cache@v1
+        id: cache-ext
+        with:
+         path: ext
+         key: ${{ runner.os }}-ext-${{ hashFiles('.github/workflows/build-win.yml') }}
+
+      - name: Compile gc
+        if: steps.cache-ext.outputs.cache-hit != 'true'
+        shell: cmd
+        run: |
+          cd "%GITHUB_WORKSPACE%
+          mkdir -p ext
+          git clone -b v7.6.4 https://github.com/ivmai/bdwgc.git
+          cd bdwgc
+          git clone -b v7.6.2 https://github.com/ivmai/libatomic_ops.git
+          powershell -Command "(New-Object System.Net.WebClient).DownloadFile('https://gist.github.com/ynkdir/688e62f419e5374347bf/raw/d250598ddf5129addd212b8390279a01bca12706/win32.mak', 'ntwin32.mak')"
+          nmake -f NT_X64_STATIC_THREADS_MAKEFILE nodebug=1 _CL_=-DDONT_USE_USER32_DLL
+          cp gc.lib %GITHUB_WORKSPACE%/ext/
+
+      - name: Get pcre
+        if: steps.cache-ext.outputs.cache-hit != 'true'
+        run: |
+          $url = "https://ftp.pcre.org/pub/pcre/pcre-8.42.tar.gz"
+          $dir = $Env:GITHUB_WORKSPACE
+          $output = "$dir/pcre-8.42.tar.gz"
+          (New-Object System.Net.WebClient).DownloadFile($url, $output)
+          7z.exe e $output
+          7z.exe x "$dir/pcre-8.42.tar"
+       
+      - name: Compile pcre
+        if: steps.cache-ext.outputs.cache-hit != 'true'
+        shell: cmd
+        run: |
+          cd %GITHUB_WORKSPACE%/pcre-8.42
+          mkdir build && cd build
+          cmake .. -G "Visual Studio 16 2019" -A x64 -DBUILD_SHARED_LIBS=OFF -DPCRE_SUPPORT_UTF=ON -DPCRE_SUPPORT_JIT=ON -DPCRE_STATIC_RUNTIME=ON -DPCRE_SUPPORT_UNICODE_PROPERTIES=1
+          cmake --build . --config release
+          cp release/pcre.lib %GITHUB_WORKSPACE%/ext/
+
+      - name: Link crystal compiler
+        shell: cmd
+        run: |
+          cd %GITHUB_WORKSPACE%
+          cp ext/*.lib .
+          SET LLVM_BASE_DIR=%GITHUB_WORKSPACE%\llvm\target
+          SET CRYSTAL_LIBRARY_PATH=%GITHUB_WORKSPACE%/ext
+          dir .build
+          CALL win\winLink.bat
+
+      - name: Prepare cache
+        run: |
+          $dir = $Env:GITHUB_WORKSPACE
+          cd "$dir/llvm"
+          if(!([System.IO.File]::Exists("$dir/llvm/llvm.7z"))) {
+            7z a -t7z llvm.7z target -ms -mmt
+          }
+          Remove-Item target -Recurse
+
+      - name: upload binary
+        uses: actions/upload-artifact@v1
+        with:
+          name: crystal.exe
+          path: crystal.exe
+#Github Actions Workflow for Crystal Windows Compiler Preview
+  publish_latest_release:
+    name: Publish release with crystal.exe
+    runs-on: ubuntu-latest
+    needs: link_windows_compiler
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v1
+      - name: Download linked binary
+        uses: actions/download-artifact@v1
+        with:
+          name: crystal.exe
+          path: .
+      - uses: majkrzak/create-release@master
+        with:
+          token: ${{secrets.GITHUB_TOKEN}}
+          code: latest
+          name: WIndows Preview
+          prerelease: true
+          assets: crystal.exe:crystal.exe:application/octet-stream
+          recreate: true
