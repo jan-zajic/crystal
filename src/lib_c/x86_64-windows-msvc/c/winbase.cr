@@ -92,4 +92,39 @@ lib LibC
   fun DestroyEnvironmentBlock(lpEnvironment : LPVOID) : BOOL
   fun FreeEnvironmentStringsW(lpszEnvironmentBlock : LPWCH) : BOOL
   fun SetEnvironmentVariableW(lpName : LPWSTR, lpValue : LPWSTR) : BOOL
+
+  MOVEFILE_REPLACE_EXISTING = 0x1
+  MOVEFILE_COPY_ALLOWED     = 0x2
+  fun MoveFileExW(
+    lpExistingFileName : LPCWSTR,
+    lpNewFileName : LPCWSTR,
+    dwFlags : DWORD
+  ) : BOOL
+  fun DeleteFileW(lpPathName : LPCWSTR) : BOOL
+  fun RemoveDirectoryW(lpPathName : LPCWSTR) : BOOL
+
+  fun CreateDirectoryW(
+    lpPathName : LPCWSTR,
+    lpSecurityAttributes : Void*
+  ) : BOOL
+
+  OWNER_SECURITY_INFORMATION = 0x00000001
+  GROUP_SECURITY_INFORMATION = 0x00000002
+  DACL_SECURITY_INFORMATION  = 0x00000004
+
+  SIZEOF_SECURITY_DESCRIPTOR = 20_u32
+
+  fun GetFileSecurityW(
+    lpFileName : LPCWSTR,
+    requestedInformation : DWORD,
+    pSecurityDescriptor : Void*,
+    nLength : DWORD,
+    lpnLengthNeeded : DWORD*
+  ) : BOOL
+
+  fun SetFileSecurityW(
+    lpFileName : LPCWSTR,
+    securityInformation : DWORD,
+    pSecurityDescriptor : Void*
+  ) : BOOL
 end

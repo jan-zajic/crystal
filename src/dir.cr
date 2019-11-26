@@ -241,13 +241,18 @@ class Dir
   def self.mkdir_p(path, mode = 0o777)
     return 0 if Dir.exists?(path)
 
-    components = path.split(File::SEPARATOR)
+    p = Path.new(path)
+    anchor = p.anchor.to_s
+    components = p.parts
     case components.first
     when ""
       components.shift
       subpath = "/"
     when "."
       subpath = components.shift
+    when anchor
+      components.shift
+      subpath = anchor
     else
       subpath = "."
     end

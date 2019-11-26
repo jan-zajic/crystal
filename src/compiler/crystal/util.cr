@@ -3,8 +3,10 @@ module Crystal
     return filename unless filename.is_a?(String)
 
     if base_file = filename.lchop? Dir.current
-      if file_prefix = base_file.lchop? '/'
-        return file_prefix
+      ::Path::SEPARATORS.each do |separator|
+        if file_prefix = base_file.lchop? separator
+          return file_prefix
+        end
       end
       return base_file
     end

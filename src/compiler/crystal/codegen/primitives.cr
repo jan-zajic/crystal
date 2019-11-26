@@ -1316,7 +1316,7 @@ class Crystal::CodeGenVisitor
         llvm_context.void_pointer.null,
         llvm_context.const_string(".PEAX"),
       ]
-
+      void_ptr_type_descriptor.linkage = LLVM::Linkage::Internal
       void_ptr_type_descriptor
     end
   end

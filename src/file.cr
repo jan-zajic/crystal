@@ -44,11 +44,11 @@ require "crystal/system/file"
 # tempfile.delete
 # ```
 class File < IO::FileDescriptor
-  # The file/directory separator character. `'/'` on all platforms.
-  SEPARATOR = '/'
+  # The file/directory separator character. `'\\'` on Windows, `'/'` on all other platforms.
+  SEPARATOR = Path::SEPARATOR
 
-  # The file/directory separator string. `"/"` on all platforms.
-  SEPARATOR_STRING = "/"
+  # The file/directory separator string. `'\\'` on Windows, `'/'` on all other platforms.
+  SEPARATOR_STRING = SEPARATOR.to_s
 
   # :nodoc:
   DEFAULT_CREATE_PERMISSIONS = File::Permissions.new(0o644)
@@ -717,6 +717,12 @@ class File < IO::FileDescriptor
 
   # Moves *old_filename* to *new_filename*.
   #
+  # Many aspects of the behavior of this method are inherently
+  # platform-dependent: The rename operation might not be able to move a
+  # file from one filesystem to another, it might not be atomic, and it
+  # might not succeed if a file with the destination abstract pathname
+  # already exists.
+  #
   # ```
   # File.write("afile", "foo")
   # File.exists?("afile") # => true
@@ -727,6 +733,10 @@ class File < IO::FileDescriptor
   # ```
   def self.rename(old_filename, new_filename) : Nil
     Crystal::System::File.rename(old_filename, new_filename)
+  end
+
+  def self.move(old_filename, new_filename, *options : MoveOption) : Nil
+    Crystal::System::File.move(old_filename, new_filename, options)
   end
 
   # Sets the access and modification times of *filename*.
@@ -836,6 +846,11 @@ class File < IO::FileDescriptor
   # Deletes this file.
   def delete
     File.delete(@path)
+  end
+
+  enum MoveOption
+    ATOMIC_MOVE
+    REPLACE_EXISTING
   end
 end
 

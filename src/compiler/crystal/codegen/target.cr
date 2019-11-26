@@ -107,23 +107,31 @@ class Crystal::Codegen::Target
 
   def to_target_machine(cpu = "", features = "", release = false,
                         code_model = LLVM::CodeModel::Default) : LLVM::TargetMachine
-    case @architecture
-    when "i386", "x86_64"
-      LLVM.init_x86
-    when "aarch64"
-      LLVM.init_aarch64
-    when "arm"
-      LLVM.init_arm
-
-      # Enable most conservative FPU for hard-float capable targets, unless a
-      # CPU is defined (it will most certainly enable a better FPU) or
-      # features contains a floating-point definition.
-      if cpu.empty? && !features.includes?("fp") && armhf?
-        features += "+vfp2"
+    {% unless flag?(:win32) %}
+      case @architecture
+      when "i386", "x86_64"
+        LLVM.init_x86
+      when "aarch64"
+        LLVM.init_aarch64
+      when "arm"
+        LLVM.init_arm
+        # Enable most conservative FPU for hard-float capable targets, unless a
+        # CPU is defined (it will most certainly enable a better FPU) or
+        # features contains a floating-point definition.
+        if cpu.empty? && !features.includes?("fp") && armhf?
+          features += "+vfp2"
+        end
+      else
+        raise Target::Error.new("Unsupported architecture for target triple: #{self}")
       end
-    else
-      raise Target::Error.new("Unsupported architecture for target triple: #{self}")
-    end
+    {% else %}
+      case @architecture
+      when "i386", "x86_64"
+        LLVM.init_x86
+      else
+        raise Target::Error.new("Unsupported architecture for target triple: #{self}")
+      end
+    {% end %}
 
     opt_level = release ? LLVM::CodeGenOptLevel::Aggressive : LLVM::CodeGenOptLevel::None
 

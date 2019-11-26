@@ -1,8 +1,13 @@
 require "option_parser"
 require "file_utils"
-require "socket"
 require "colorize"
 require "digest/md5"
+
+{% if flag?(:win32) %}
+  OBJECT_FILE_EXTENSION = ".obj"
+{% else %}
+  OBJECT_FILE_EXTENSION = ".o"
+{% end %}
 
 module Crystal
   @[Flags]
@@ -22,8 +27,10 @@ module Crystal
   # A Compiler parses source code, type checks it and
   # optionally generates an executable.
   class Compiler
-    CC = ENV["CC"]? || "cc"
-    CL = "cl"
+    CC   = ENV["CC"]? || "cc"
+    LINK = "LINK"
+    @@current : Compiler?
+    @parent : Compiler?
 
     # A source to the compiler: its filename and source code.
     record Source,
@@ -74,7 +81,7 @@ module Crystal
     property? no_codegen = false
 
     # Maximum number of LLVM modules that are compiled in parallel
-    property n_threads : Int32 = {% if flag?(:preview_mt) %} 1 {% else %} 8 {% end %}
+    property n_threads : Int32 = {% if flag?(:preview_mt) || flag?(:win32) %} 1 {% else %} 8 {% end %}
 
     # Default prelude file to use. This ends up adding a
     # `require "prelude"` (or whatever name is set here) to
@@ -163,17 +170,23 @@ module Crystal
     # Raises `InvalidByteSequenceError` if the source code is not
     # valid UTF-8.
     def compile(source : Source | Array(Source), output_filename : String) : Result
-      source = [source] unless source.is_a?(Array)
-      program = new_program(source)
-      node = parse program, source
-      node = program.semantic node, cleanup: !no_cleanup?
-      result = codegen program, node, source, output_filename unless @no_codegen
+      @parent = @@current
+      @@current = self
+      begin
+        source = [source] unless source.is_a?(Array)
+        program = new_program(source)
+        node = parse program, source
+        node = program.semantic node, cleanup: !no_cleanup?
+        result = codegen program, node, source, output_filename unless @no_codegen
 
-      @progress_tracker.clear
-      print_macro_run_stats(program)
-      print_codegen_stats(result)
+        @progress_tracker.clear
+        print_macro_run_stats(program)
+        print_codegen_stats(result)
 
-      Result.new program, node
+        Result.new program, node
+      ensure
+        @@current = @parent
+      end
     end
 
     # Runs the semantic pass on the given source, without generating an
@@ -253,7 +266,7 @@ module Crystal
     private def bc_flags_changed?(output_dir)
       bc_flags_changed = true
       current_bc_flags = "#{@codegen_target}|#{@mcpu}|#{@mattr}|#{@release}|#{@link_flags}|#{@mcmodel}"
-      bc_flags_filename = "#{output_dir}/bc_flags"
+      bc_flags_filename = "#{output_dir}#{::Path::SEPARATOR}bc_flags"
       if File.file?(bc_flags_filename)
         previous_bc_flags = File.read(bc_flags_filename).strip
         bc_flags_changed = previous_bc_flags != current_bc_flags
@@ -305,7 +318,7 @@ module Crystal
     private def cross_compile(program, units, output_filename)
       unit = units.first
       llvm_mod = unit.llvm_mod
-      object_name = "#{output_filename}.o"
+      object_name = "#{output_filename}#{OBJECT_FILE_EXTENSION}"
 
       optimize llvm_mod if @release
 
@@ -323,18 +336,15 @@ module Crystal
         if object_name
           object_name = %("#{object_name}")
         else
-          object_name = %(%*)
+          object_name = %()
         end
 
-        if (link_flags = @link_flags) && !link_flags.empty?
-          link_flags = "/link #{link_flags}"
-        end
-
-        %(#{CL} #{object_name} "/Fe#{output_filename}" #{program.lib_flags} #{link_flags})
+        link_flags = @link_flags || ""
+        %(#{LINK} #{object_name} "/OUT:#{output_filename}.exe" /NOLOGO #{link_flags} #{program.lib_flags})
       else
         if thin_lto
           clang = ENV["CLANG"]? || "clang"
-          lto_cache_dir = "#{output_dir}/lto.cache"
+          lto_cache_dir = "#{output_dir}#{::Path::SEPARATOR}lto.cache"
           Dir.mkdir_p(lto_cache_dir)
           {% if flag?(:darwin) %}
             cc = ENV["CC"]? || "#{clang} -flto=thin -Wl,-mllvm,-threads=#{n_threads},-cache_path_lto,#{lto_cache_dir},#{@release ? "-mllvm,-O2" : "-mllvm,-O0"}"
@@ -387,11 +397,9 @@ module Crystal
       end
 
       output_filename = File.expand_path(output_filename)
-
       @progress_tracker.stage("Codegen (linking)") do
         Dir.cd(output_dir) do
           linker_command = linker_command(program, nil, output_filename, output_dir)
-
           process_wrapper(linker_command, object_names) do |command, args|
             Process.run(command, args, shell: true,
               input: Process::Redirect::Close, output: Process::Redirect::Inherit, error: Process::Redirect::Pipe) do |process|
@@ -429,6 +437,8 @@ module Crystal
 
       {% if flag?(:preview_mt) %}
         raise "Cannot fork compiler in multithread mode"
+      {% elsif flag?(:win32) %}
+        raise "Cannot fork compiler on windows"
       {% else %}
         jobs_count = 0
         wait_channel = Channel(Array(String)).new(@n_threads)
@@ -509,11 +519,11 @@ module Crystal
       puts
       puts "Codegen (bc+obj):"
       if units.size == reused.size
-        puts " - all previous .o files were reused"
+        puts " - all previous #{OBJECT_FILE_EXTENSION} files were reused"
       elsif reused.size == 0
-        puts " - no previous .o files were reused"
+        puts " - no previous #{OBJECT_FILE_EXTENSION} files were reused"
       else
-        puts " - #{reused.size}/#{units.size} .o files were reused"
+        puts " - #{reused.size}/#{units.size} #{OBJECT_FILE_EXTENSION} files were reused"
         not_reused = units.reject { |u| reused.includes?(u.name) }
         puts
         puts "These modules were not reused:"
@@ -594,6 +604,18 @@ module Crystal
       obj.colorize.toggle(@color)
     end
 
+    def self.current
+      return @@current
+    end
+
+    def self.current_parent
+      @@current.as(Compiler).parent unless !@@current
+    end
+
+    def parent
+      @parent
+    end
+
     # An LLVM::Module with information to compile it.
     class CompilationUnit
       getter compiler
@@ -639,7 +661,7 @@ module Crystal
         {% unless LibLLVM::IS_38 || LibLLVM::IS_39 %}
           # Here too, we first compile to a temporary file and then rename it
           llvm_mod.write_bitcode_with_summary_to_file(temporary_object_name)
-          File.rename(temporary_object_name, object_name)
+          File.move(temporary_object_name, object_name, File::MoveOption::ATOMIC_MOVE)
           @reused_previous_compilation = false
           dump_llvm_ir
         {% else %}
@@ -702,7 +724,7 @@ module Crystal
         if must_compile
           compiler.optimize llvm_mod if compiler.release?
           compiler.target_machine.emit_obj_to_file llvm_mod, temporary_object_name
-          File.rename(temporary_object_name, object_name)
+          File.move(temporary_object_name, object_name, File::MoveOption::ATOMIC_MOVE)
         else
           @reused_previous_compilation = true
         end
@@ -725,32 +747,32 @@ module Crystal
           llvm_mod.print_to_file "#{output_filename}.ll"
         end
         if emit_target.obj?
-          FileUtils.cp(object_name, "#{output_filename}.o")
+          FileUtils.cp(object_name, "#{output_filename}#{OBJECT_FILE_EXTENSION}")
         end
       end
 
       def object_name
-        Crystal.relative_filename("#{@output_dir}/#{object_filename}")
+        Crystal.relative_filename("#{@output_dir}#{::Path::SEPARATOR}#{object_filename}")
       end
 
       def object_filename
-        "#{@name}.o"
+        "#{@name}#{OBJECT_FILE_EXTENSION}"
       end
 
       def temporary_object_name
-        Crystal.relative_filename("#{@output_dir}/#{object_filename}.tmp")
+        Crystal.relative_filename("#{@output_dir}#{::Path::SEPARATOR}#{object_filename}.tmp")
       end
 
       def bc_name
-        "#{@output_dir}/#{@name}.bc"
+        "#{@output_dir}#{::Path::SEPARATOR}#{@name}.bc"
       end
 
       def bc_name_new
-        "#{@output_dir}/#{@name}.new.bc"
+        "#{@output_dir}#{::Path::SEPARATOR}#{@name}.new.bc"
       end
 
       def ll_name
-        "#{@output_dir}/#{@name}.ll"
+        "#{@output_dir}#{::Path::SEPARATOR}#{@name}.ll"
       end
     end
   end

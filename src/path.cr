@@ -76,9 +76,24 @@ struct Path
     end
   end
 
-  # The file/directory separator characters of the current platform.
+  # Primary file/directory separator character of the current platform.
+  # '/' on POSIX, '\\' on Windows.
+  SEPARATOR = separator(Kind.native)
+  # All possible file/directory separator characters of the current platform.
   # `{'/'}` on POSIX, `{'\\', '/'}` on Windows.
   SEPARATORS = separators(Kind.native)
+  # The system-dependent path-separator character
+  # On UNIX systems, this character is ':'; on Microsoft Windows systems it is ';'.
+  PATH_SEPARATOR = path_separator(Kind.native)
+
+  # :nodoc:
+  def self.separator(kind)
+    if kind.windows?
+      '\\'
+    else
+      '/'
+    end
+  end
 
   # :nodoc:
   def self.separators(kind)
@@ -86,6 +101,15 @@ struct Path
       {'\\', '/'}
     else
       {'/'}
+    end
+  end
+
+  # :nodoc:
+  def self.path_separator(kind)
+    if kind.windows?
+      ';'
+    else
+      ':'
     end
   end
 
